@@ -24,7 +24,7 @@ def rotate(angle, center, landmark):
 
 
 class ImageDate():
-    def __init__(self, line , imgDir, num_labels, dataset):
+    def __init__(self, line, pcn_input_scale, output_bb_scale, imgDir, num_labels, dataset):
         line = line.strip().split()
         """
         num_labels = 98
@@ -92,6 +92,8 @@ class ImageDate():
         else:
             print("len landmark is not invalid")
             exit()
+        self.pcn_input_scale = pcn_input_scale
+        self.output_bb_scale = output_bb_scale
         self.label = []
 
     def convert_data(self):
@@ -105,7 +107,7 @@ class ImageDate():
 
         # くりぬきboxのサイズ
         # このboxを元にpcnをかけ回転させる
-        boxsize = int(np.max(wh) * 2)
+        boxsize = int(np.max(wh) * self.pcn_input_scale)
         # 顔枠の左上座標
         xy = center - boxsize // 2
         x1, y1 = xy
@@ -137,14 +139,41 @@ class ImageDate():
         landmark = self.landmark - xy
 
         # PCNで回転角を取得し正座画像に
-        self.new_box, angle = self.pcn_detect(imgT)
+        new_box_dict, angle = self.pcn_detect(imgT)
+        # 顔枠が取れない場合はスキップ
         if angle != None:
             self.is_detect = True
+            # pcnの顔枠 * output_bb_scale倍の大きさでcropし学習データ作成
+            # 輪郭点が顔枠からはみ出るとうまく学習できない可能性があるため
+            pcn_x = new_box_dict["x"]
+            pcn_y = new_box_dict["y"]
+            pcn_w = new_box_dict["w"]
+            pcn_center_x = int(pcn_x + pcn_w // 2)
+            pcn_center_y = int(pcn_y + pcn_w // 2)
+
+            croped_img_w = int(pcn_w * self.output_bb_scale)
+            scale_size = (croped_img_w - pcn_w) // 2
+            # crop image
+            croped_x1 = pcn_center_x - croped_img_w // 2
+            croped_y1 = pcn_center_y - croped_img_w // 2
+            croped_x2 = croped_x1 + croped_img_w
+            croped_y2 = croped_y1 + croped_img_w
+            self.new_img = imgT[croped_y1:croped_y2, croped_x1:croped_x2]
+            # scale bbox
+            new_bb_x = scale_size
+            new_bb_y = scale_size
+            self.new_box = [new_bb_x, new_bb_y, pcn_w, pcn_w]
+            # scale landmarks
+            self.new_landmark = landmark - np.array([croped_x1, croped_y1])
+
+            # pcnの出力回転角で輪郭点と画像を回転
+            xy = np.min(self.new_landmark, axis=0).astype(np.int32)
+            zz = np.max(self.new_landmark, axis=0).astype(np.int32)
+            wh = zz - xy + 1
+            center = (xy + wh / 2).astype(np.int32)
             cx, cy = center
-            # 回転
-            # pcnの出力回転角と
-            M, self.new_landmark = rotate(angle, (cx, cy), landmark)
-            self.new_img = cv2.warpAffine(imgT, M, (int(imgT.shape[1]), int(imgT.shape[0])), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+            M, self.new_landmark = rotate(angle, (cx, cy), self.new_landmark)
+            self.new_img = cv2.warpAffine(self.new_img, M, (int(self.new_img.shape[1]), int(self.new_img.shape[0])), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
             for land in self.new_landmark:
                 for each_land in land:
@@ -184,20 +213,16 @@ class ImageDate():
             img = cv2.warpAffine(img, rotMat, (img.shape[1],img.shape[0]), flags=cv2.INTER_LINEAR)
             print("try pcn")
         """
-        pcn_box = []
+        pcn_box = {}
         angle = None
         if winlist != []:
             # print(winlist[0].__dict__)
-            conf = winlist[0].score
+            # conf = winlist[0].score
             x1 = winlist[0].x
             y1 = winlist[0].y
             width = winlist[0].width
             angle = winlist[0].angle
-            x2 = width + x1 -1
-            y2 = width + y1 -1
-            centerX = (x1 + x2) // 2
-            centerY = (y1 + y2) // 2
-            pcn_box = [x1, y1, width, width]
+            pcn_box = {"x": x1, "y": y1, "w": width, "h": width}
         else:
             print("pass get image for cannot pcn detecting in : ", os.path.basename(self.path))
 
@@ -211,6 +236,10 @@ if __name__ == '__main__':
         print("please set arg(phase, ex: python create_PCN_labe.py train")
         exit()
     is_debug = True
+
+    PCN_INPUT_SCALE = 4
+    OUTPUT_PCN_BB_SCALE = 1.5
+
     DatasetDir = "./growing"
     imgDir = os.path.join(DatasetDir, "growing_20180601")
     labelPath = os.path.join(DatasetDir, "traindata8979_20180601_"+phase+".txt")
@@ -231,7 +260,7 @@ if __name__ == '__main__':
 
         with open(newlabelPath, mode='w') as newlabel_f:
             for id, line in enumerate(lines):
-                Img = ImageDate(line, imgDir, 68, "growing")
+                Img = ImageDate(line, PCN_INPUT_SCALE, OUTPUT_PCN_BB_SCALE, imgDir, 68, "growing")
                 img_name = Img.path
                 Img.convert_data()
                 if not Img.is_detect:
