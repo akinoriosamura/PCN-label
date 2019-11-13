@@ -1,3 +1,5 @@
 growing/
 pcn_debug/
 .vscode/
+nohup.out
+pytorch-PCN

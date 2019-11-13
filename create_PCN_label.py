@@ -173,15 +173,17 @@ class ImageDate():
             center = (xy + wh / 2).astype(np.int32)
             cx, cy = center
             M, self.new_landmark = rotate(angle, (cx, cy), self.new_landmark)
-            self.new_img = cv2.warpAffine(self.new_img, M, (int(self.new_img.shape[1]), int(self.new_img.shape[0])), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-
-            for land in self.new_landmark:
-                for each_land in land:
-                    self.label.append(str(each_land))
-            for bb in self.new_box:
-                self.label.append(str(bb))
-            attributes = ["0"] * 6
-            self.label.extend(attributes)
+            try:
+                self.new_img = cv2.warpAffine(self.new_img, M, (int(self.new_img.shape[1]), int(self.new_img.shape[0])), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+                for land in self.new_landmark:
+                    for each_land in land:
+                        self.label.append(str(each_land))
+                for bb in self.new_box:
+                    self.label.append(str(bb))
+                attributes = ["0"] * 6
+                self.label.extend(attributes)
+            except:
+                self.is_detect = False
         else:
             self.is_detect = False
 
@@ -237,7 +239,13 @@ if __name__ == '__main__':
         exit()
     is_debug = True
 
-    PCN_INPUT_SCALE = 4
+    PCN_INPUT_SCALE = 3
+    # in PCN_INPUT_SCALE = 3 then, train data is below
+    # new labels num;  5538
+    # cannot detect face by pcn:  2279
+    # test
+    # new labels num;  613
+    # cannot detect face by pcn:  256
     OUTPUT_PCN_BB_SCALE = 1.5
 
     DatasetDir = "./growing"
