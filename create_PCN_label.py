@@ -188,6 +188,23 @@ class ImageDate():
             self.is_detect = False
 
 
+    def remove_unuse_land(self, line):
+        del_ago = [2, 4, 6, 8, 9, 11, 12, 14, 18, 20, 21, 23, 24, 26, 28, 30]
+        del_left_eye_blow = [38, 39, 40, 41]
+        del_right_eye_blow = [47, 48, 49, 50]
+        del_eye = [62, 66, 70, 74]
+        del_eye_center = [96, 97]
+        dels = del_ago + del_left_eye_blow + del_right_eye_blow + del_eye + del_eye_center
+        # 削除する際にインデックスがずれないように降順に削除していく
+        dels.sort(reverse=True)
+        for del_id in dels:
+            del_id_y = del_id * 2 + 1
+            del_id_x = del_id * 2
+            line.pop(del_id_y)
+            line.pop(del_id_x)
+
+        return line
+
     def save(self, debugDir, saveName):
         savePath = os.path.join(debugDir, saveName)
         originPath = savePath + "origin.jpg"
@@ -240,19 +257,28 @@ if __name__ == '__main__':
     is_debug = True
 
     PCN_INPUT_SCALE = 3
+    OUTPUT_PCN_BB_SCALE = 1.5
     # in PCN_INPUT_SCALE = 3 then, train data is below
     # new labels num;  5538
     # cannot detect face by pcn:  2279
     # test
     # new labels num;  613
     # cannot detect face by pcn:  256
-    OUTPUT_PCN_BB_SCALE = 1.5
-
+    
+    """
+    dataset = "growing"
     DatasetDir = "./growing"
     imgDir = os.path.join(DatasetDir, "growing_20180601")
     labelPath = os.path.join(DatasetDir, "traindata8979_20180601_"+phase+".txt")
     outputDir = os.path.join(DatasetDir, "pcn_growing_images")
     newlabelPath = os.path.join(DatasetDir, "pcn_growing_annotaions_"+phase+".txt")
+    """
+    dataset = "WFLW"
+    DatasetDir = "./WFLW"
+    imgDir = os.path.join(DatasetDir, "WFLW_images")
+    labelPath = os.path.join(DatasetDir, "WFLW_annotations/list_98pt_rect_attr_train_test/list_98pt_rect_attr_"+phase+".txt")
+    outputDir = os.path.join(DatasetDir, "pcn_WFLW68_images")
+    newlabelPath = os.path.join(DatasetDir, "pcn_WFLW68_annotaions_"+phase+".txt")
     debugDir = "./pcn_debug"
     os.makedirs(outputDir, exist_ok=True)
     os.makedirs(debugDir, exist_ok=True)
@@ -268,12 +294,12 @@ if __name__ == '__main__':
 
         with open(newlabelPath, mode='w') as newlabel_f:
             for id, line in enumerate(lines):
-                Img = ImageDate(line, PCN_INPUT_SCALE, OUTPUT_PCN_BB_SCALE, imgDir, 68, "growing")
+                Img = ImageDate(line, PCN_INPUT_SCALE, OUTPUT_PCN_BB_SCALE, imgDir, 68, dataset)
                 img_name = Img.path
                 Img.convert_data()
                 if not Img.is_detect:
                     continue
-                saveName = str(id) + ".jpg"
+                saveName = "pcn_" + os.path.basename(img_name)
                 savePath = os.path.join(outputDir, saveName)
                 cv2.imwrite(savePath, Img.new_img)
                 Img.label.append(saveName)
