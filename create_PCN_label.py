@@ -265,7 +265,7 @@ if __name__ == '__main__':
     # new labels num;  613
     # cannot detect face by pcn:  256
     
-    """
+    
     dataset = "growing"
     DatasetDir = "./growing"
     imgDir = os.path.join(DatasetDir, "growing_20180601")
@@ -279,6 +279,8 @@ if __name__ == '__main__':
     labelPath = os.path.join(DatasetDir, "WFLW_annotations/list_98pt_rect_attr_train_test/list_98pt_rect_attr_"+phase+".txt")
     outputDir = os.path.join(DatasetDir, "pcn_WFLW68_images")
     newlabelPath = os.path.join(DatasetDir, "pcn_WFLW68_annotaions_"+phase+".txt")
+    """
+
     debugDir = "./pcn_debug"
     os.makedirs(outputDir, exist_ok=True)
     os.makedirs(debugDir, exist_ok=True)
