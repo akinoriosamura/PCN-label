@@ -1,5 +1,5 @@
 ## Requirements
- - set dataset in `/`
+ - set dataset in `./`
 ```
 dataset
  - image_dir
@@ -12,6 +12,7 @@ annotation file format is like WFLW annotation txt file
 
 ## Setup
 ```
+git submodule update --init --recursive
 pipenv install
 ```
 

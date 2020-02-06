@@ -139,8 +139,10 @@ class ImageDate():
         landmark = self.landmark - xy
 
         # PCNで回転角を取得し正座画像に
+        # TODO: change pcn model
         new_box_dict, angle = self.pcn_detect(imgT)
         # 顔枠が取れない場合はスキップ
+        # TODO: apply pcn rotate and landmark process
         if angle != None:
             self.is_detect = True
             # pcnの顔枠 * output_bb_scale倍の大きさでcropし学習データ作成
@@ -251,6 +253,10 @@ if __name__ == '__main__':
     # read label file
     if len(sys.argv) == 2:
         phase = sys.argv[1]
+        # pcn_type:
+        # rotate = rotate face and save pcn label. 
+        # landmark = get pcn landmark and save.no rotate.
+        pcn_type = sys.argv[2]
     else:
         print("please set arg(phase, ex: python create_PCN_labe.py train")
         exit()
@@ -270,8 +276,14 @@ if __name__ == '__main__':
     DatasetDir = "./growing"
     imgDir = os.path.join(DatasetDir, "growing_20180601")
     labelPath = os.path.join(DatasetDir, "traindata8979_20180601_"+phase+".txt")
-    outputDir = os.path.join(DatasetDir, "pcn_growing_images")
-    newlabelPath = os.path.join(DatasetDir, "pcn_growing_annotaions_"+phase+".txt")
+    if pcn_type == "rotate":
+        outputDir = os.path.join(DatasetDir, "rotate_pcn_growing_images")
+        newlabelPath = os.path.join(DatasetDir, "rotate_pcn_growing_annotaions_"+phase+".txt")
+    elif pcn_type == "landmark":
+        outputDir = os.path.join(DatasetDir, "landmark_pcn_growing_images")
+        newlabelPath = os.path.join(DatasetDir, "landmark_pcn_growing_annotaions_"+phase+".txt") 
+    else:
+        break
     """
     dataset = "WFLW"
     DatasetDir = "./WFLW"
