@@ -5,6 +5,10 @@ import pcn
 import sys
 import time
 
+from FaceKit.PCN.PyPCN import build_init_detector, get_PCN_result, draw_result, get_label_dict
+
+
+detector = build_init_detector()
 
 def rotate(angle, center, landmark):
     rad =  - angle * np.pi / 180.0
@@ -24,7 +28,7 @@ def rotate(angle, center, landmark):
 
 
 class ImageDate():
-    def __init__(self, line, pcn_input_scale, output_bb_scale, imgDir, num_labels, dataset):
+    def __init__(self, line, pcn_input_scale, output_bb_scale, imgDir, num_labels, dataset, pcn_type):
         line = line.strip().split()
         """
         num_labels = 98
@@ -94,6 +98,7 @@ class ImageDate():
             exit()
         self.pcn_input_scale = pcn_input_scale
         self.output_bb_scale = output_bb_scale
+        self.pcn_type = pcn_type
         self.label = []
 
     def convert_data(self):
@@ -139,11 +144,20 @@ class ImageDate():
         landmark = self.landmark - xy
 
         # PCNで回転角を取得し正座画像に
-        # TODO: change pcn model
-        new_box_dict, angle = self.pcn_detect(imgT)
+        # new_box_dict: {'x': 273, 'y': 231, 'w': 321, 'h': 321}
+        # angle: (-180, 180)
+        # new_box_dict, angle = self.pcn_detect(imgT)
+        time.sleep(1)
+        face_count, windows = get_PCN_result(imgT, detector)
+        # imgT = draw_result(imgT, face_count, windows)
+        # cv2.imwrite("./sample_label.jpg", imgT)
+        label_dict, angle = get_label_dict(face_count, windows)
+        
         # 顔枠が取れない場合はスキップ
         # TODO: apply pcn rotate and landmark process
         if angle != None:
+            new_box_dict = label_dict["bbox"]
+            new_landmark = label_dict["landmark"]
             self.is_detect = True
             # pcnの顔枠 * output_bb_scale倍の大きさでcropし学習データ作成
             # 輪郭点が顔枠からはみ出るとうまく学習できない可能性があるため
@@ -168,24 +182,58 @@ class ImageDate():
             # scale landmarks
             self.new_landmark = landmark - np.array([croped_x1, croped_y1])
 
-            # pcnの出力回転角で輪郭点と画像を回転
-            xy = np.min(self.new_landmark, axis=0).astype(np.int32)
-            zz = np.max(self.new_landmark, axis=0).astype(np.int32)
-            wh = zz - xy + 1
-            center = (xy + wh / 2).astype(np.int32)
-            cx, cy = center
-            M, self.new_landmark = rotate(angle, (cx, cy), self.new_landmark)
-            try:
-                self.new_img = cv2.warpAffine(self.new_img, M, (int(self.new_img.shape[1]), int(self.new_img.shape[0])), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-                for land in self.new_landmark:
-                    for each_land in land:
-                        self.label.append(str(each_land))
-                for bb in self.new_box:
-                    self.label.append(str(bb))
-                attributes = ["0"] * 6
-                self.label.extend(attributes)
-            except:
-                self.is_detect = False
+            if self.pcn_type == "rotate":
+                # pcnの出力回転角で輪郭点と画像を回転
+                xy = np.min(self.new_landmark, axis=0).astype(np.int32)
+                zz = np.max(self.new_landmark, axis=0).astype(np.int32)
+                wh = zz - xy + 1
+                center = (xy + wh / 2).astype(np.int32)
+                cx, cy = center
+                M, self.new_landmark = rotate(angle, (cx, cy), self.new_landmark)
+                try:
+                    self.new_img = cv2.warpAffine(self.new_img, M, (int(self.new_img.shape[1]), int(self.new_img.shape[0])), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+                    for land in self.new_landmark:
+                        for each_land in land:
+                            self.label.append(str(each_land))
+                    for bb in self.new_box:
+                        self.label.append(str(bb))
+                    attributes = ["0"] * 6
+                    self.label.extend(attributes)
+                except:
+                    self.is_detect = False
+            elif self.pcn_type == "landmark":
+                try:
+                    for land in self.new_landmark:
+                        for each_land in land:
+                            self.label.append(str(each_land))
+                    for bb in self.new_box:
+                        self.label.append(str(bb))
+                    attributes = ["0"] * 6
+                    self.label.extend(attributes)
+                    # add pcn landmerk
+                    pcn_landmark = [
+                        label_dict["landmark"]["nose"][0],
+                        label_dict["landmark"]["nose"][1],
+                        label_dict["landmark"]["eye_left"][0],
+                        label_dict["landmark"]["eye_left"][1],
+                        label_dict["landmark"]["eye_right"][0],
+                        label_dict["landmark"]["eye_right"][1],
+                        label_dict["landmark"]["mouth_left"][0],
+                        label_dict["landmark"]["mouth_left"][1],
+                        label_dict["landmark"]["mouth_right"][0],
+                        label_dict["landmark"]["mouth_right"][1]
+                    ]
+                    for i in range(9):
+                        label = "chin_" + str(i)
+                        pcn_landmark.extend(label_dict["landmark"][label])
+                    pcn_landmark = [str(land) for land in pcn_landmark]
+                    self.label.extend(pcn_landmark)
+                    print("label: ", self.label)
+
+                except:
+                    self.is_detect = False
+            else:
+                exit()
         else:
             self.is_detect = False
 
@@ -251,16 +299,19 @@ class ImageDate():
 
 if __name__ == '__main__':
     # read label file
-    if len(sys.argv) == 2:
+    if len(sys.argv) == 3:
         phase = sys.argv[1]
         # pcn_type:
         # rotate = rotate face and save pcn label. 
         # landmark = get pcn landmark and save.no rotate.
+        # ┗ txt: 174 label = [136(68*2) points] + [4 bbox] + [6 attributes] + [28(14*2) pcn landmark]
         pcn_type = sys.argv[2]
     else:
-        print("please set arg(phase, ex: python create_PCN_labe.py train")
+        print("please set arg(phase, ex: python create_PCN_labe.py train rotate")
         exit()
     is_debug = True
+    print("phase: ", phase)
+    print("pcn_type: ", pcn_type)
 
     PCN_INPUT_SCALE = 3
     OUTPUT_PCN_BB_SCALE = 1.5
@@ -271,7 +322,14 @@ if __name__ == '__main__':
     # new labels num;  613
     # cannot detect face by pcn:  256
     
-    
+    """
+    dataset = "WFLW"
+    DatasetDir = "./WFLW"
+    imgDir = os.path.join(DatasetDir, "WFLW_images")
+    labelPath = os.path.join(DatasetDir, "WFLW_annotations/list_98pt_rect_attr_train_test/list_98pt_rect_attr_"+phase+".txt")
+    outputDir = os.path.join(DatasetDir, "pcn_WFLW68_images")
+    newlabelPath = os.path.join(DatasetDir, "pcn_WFLW68_annotaions_"+phase+".txt")
+
     dataset = "growing"
     DatasetDir = "./growing"
     imgDir = os.path.join(DatasetDir, "growing_20180601")
@@ -283,15 +341,23 @@ if __name__ == '__main__':
         outputDir = os.path.join(DatasetDir, "landmark_pcn_growing_images")
         newlabelPath = os.path.join(DatasetDir, "landmark_pcn_growing_annotaions_"+phase+".txt") 
     else:
-        break
+        print("error")
+        exit()
     """
-    dataset = "WFLW"
-    DatasetDir = "./WFLW"
-    imgDir = os.path.join(DatasetDir, "WFLW_images")
-    labelPath = os.path.join(DatasetDir, "WFLW_annotations/list_98pt_rect_attr_train_test/list_98pt_rect_attr_"+phase+".txt")
-    outputDir = os.path.join(DatasetDir, "pcn_WFLW68_images")
-    newlabelPath = os.path.join(DatasetDir, "pcn_WFLW68_annotaions_"+phase+".txt")
-    """
+
+    dataset = "alignment_moru_dataset_20190101_cleanedv2"
+    DatasetDir = "./alignment_moru_dataset_20190101_cleanedv2"
+    imgDir = os.path.join(DatasetDir, "img")
+    labelPath = os.path.join(DatasetDir, "json", "alignment_moru_dataset_"+phase+".txt")
+    if pcn_type == "rotate":
+        outputDir = os.path.join(DatasetDir, "rotate_pcn_moru_cleanedv2_images")
+        newlabelPath = os.path.join(DatasetDir, "json", "rotate_pcn_moru_cleanedv2_annotaions_"+phase+".txt")
+    elif pcn_type == "landmark":
+        outputDir = os.path.join(DatasetDir, "add_pcn_landmark_moru_cleanedv2_images")
+        newlabelPath = os.path.join(DatasetDir, "json", "add_pcn_landmark_moru_cleanedv2_annotaions_"+phase+".txt") 
+    else:
+        print("error")
+        exit()
 
     debugDir = "./pcn_debug"
     os.makedirs(outputDir, exist_ok=True)
@@ -308,7 +374,7 @@ if __name__ == '__main__':
 
         with open(newlabelPath, mode='w') as newlabel_f:
             for id, line in enumerate(lines):
-                Img = ImageDate(line, PCN_INPUT_SCALE, OUTPUT_PCN_BB_SCALE, imgDir, 68, dataset)
+                Img = ImageDate(line, PCN_INPUT_SCALE, OUTPUT_PCN_BB_SCALE, imgDir, 68, dataset, pcn_type)
                 img_name = Img.path
                 Img.convert_data()
                 if not Img.is_detect:
@@ -317,9 +383,14 @@ if __name__ == '__main__':
                 savePath = os.path.join(outputDir, saveName)
                 cv2.imwrite(savePath, Img.new_img)
                 Img.label.append(saveName)
-                if len(Img.label) != 147:
-                    import pdb;pdb.set_trace()
-                assert len(Img.label) == 147
+                if pcn_type == "rotate":
+                    if len(Img.label) != 147:
+                        import pdb;pdb.set_trace()
+                    assert len(Img.label) == 147
+                elif pcn_type == "landmark":
+                    if len(Img.label) != 175:
+                        import pdb;pdb.set_trace()
+                    assert len(Img.label) == 175
                 str_label = " ".join(Img.label) + "\n"
                 newlabel_f.write(str_label)
                 processed_num += 1
