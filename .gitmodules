@@ -1,3 +1,6 @@
 [submodule "pytorch-PCN"]
 	path = pytorch-PCN
 	url = git@github.com:siriusdemon/pytorch-PCN.git
+[submodule "Facekit"]
+	path = FaceKit
+	url = git@github.com:akinoriosamura/FaceKit.git
