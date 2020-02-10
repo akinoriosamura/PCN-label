@@ -358,13 +358,6 @@ if __name__ == '__main__':
     # cannot detect face by pcn:  256
     
     """
-    dataset = "WFLW"
-    DatasetDir = "./WFLW"
-    imgDir = os.path.join(DatasetDir, "WFLW_images")
-    labelPath = os.path.join(DatasetDir, "WFLW_annotations/list_98pt_rect_attr_train_test/list_98pt_rect_attr_"+phase+".txt")
-    outputDir = os.path.join(DatasetDir, "pcn_WFLW68_images")
-    newlabelPath = os.path.join(DatasetDir, "pcn_WFLW68_annotaions_"+phase+".txt")
-
     dataset = "growing"
     DatasetDir = "./growing"
     imgDir = os.path.join(DatasetDir, "growing_20180601")
@@ -378,7 +371,6 @@ if __name__ == '__main__':
     else:
         print("error")
         exit()
-    """
 
     dataset = "add_land_alignment_moru_dataset_20190101_cleanedv2"
     DatasetDir = "./add_land_alignment_moru_dataset_20190101_cleanedv2"
@@ -393,6 +385,24 @@ if __name__ == '__main__':
         elif pcn_type == "landmark":
             outputDir = os.path.join(DatasetDir, "add_pcn_landmark_moru_cleanedv2_images")
             newlabelPath = os.path.join(DatasetDir, "json", "add_pcn_landmark_moru_cleanedv2_annotaions_"+phase+".txt") 
+        else:
+            print("error")
+            exit()
+    """
+
+    dataset = "WFLW"
+    DatasetDir = "./WFLW"
+    imgDir = os.path.join(DatasetDir, "WFLW_images")
+    phases = ["test", "train"]
+    for phase in phases:
+        print("phase: ", phase)
+        labelPath = os.path.join(DatasetDir, "WFLW_annotations", "list_98pt_rect_attr_train_test/list_98pt_rect_attr_"+phase+".txt")
+        if pcn_type == "rotate":
+            outputDir = os.path.join(DatasetDir, "rotate_pcn_WFLW68_images")
+            newlabelPath = os.path.join(DatasetDir, "WFLW_annotations", "rotate_pcn_WFLW68_annotaions_"+phase+".txt")
+        elif pcn_type == "landmark":
+            outputDir = os.path.join(DatasetDir, "add_pcn_landmark_WFLW68_images")
+            newlabelPath = os.path.join(DatasetDir, "WFLW_annotations", "add_pcn_landmark_WFLW68_annotaions_"+phase+".txt") 
         else:
             print("error")
             exit()
