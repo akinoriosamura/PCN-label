@@ -348,7 +348,7 @@ if __name__ == '__main__':
     print("pcn_type: ", pcn_type)
 
     # 比較した感じ3が一番PCNで検出する
-    PCN_INPUT_SCALE = 3
+    PCN_INPUT_SCALE = 3.5
     OUTPUT_PCN_BB_SCALE = 1.5
     # in PCN_INPUT_SCALE = 3 then, train data is below
     # new labels num;  5538
@@ -358,19 +358,6 @@ if __name__ == '__main__':
     # cannot detect face by pcn:  256
     
     """
-    dataset = "growing"
-    DatasetDir = "./growing"
-    imgDir = os.path.join(DatasetDir, "growing_20180601")
-    labelPath = os.path.join(DatasetDir, "traindata8979_20180601_"+phase+".txt")
-    if pcn_type == "rotate":
-        outputDir = os.path.join(DatasetDir, "rotate_pcn_growing_images")
-        newlabelPath = os.path.join(DatasetDir, "rotate_pcn_growing_annotaions_"+phase+".txt")
-    elif pcn_type == "landmark":
-        outputDir = os.path.join(DatasetDir, "landmark_pcn_growing_images")
-        newlabelPath = os.path.join(DatasetDir, "landmark_pcn_growing_annotaions_"+phase+".txt") 
-    else:
-        print("error")
-        exit()
 
     dataset = "add_land_alignment_moru_dataset_20190101_cleanedv2"
     DatasetDir = "./add_land_alignment_moru_dataset_20190101_cleanedv2"
@@ -388,7 +375,6 @@ if __name__ == '__main__':
         else:
             print("error")
             exit()
-    """
 
     dataset = "WFLW"
     DatasetDir = "./WFLW"
@@ -403,6 +389,24 @@ if __name__ == '__main__':
         elif pcn_type == "landmark":
             outputDir = os.path.join(DatasetDir, "add_pcn_landmark_WFLW68_images")
             newlabelPath = os.path.join(DatasetDir, "WFLW_annotations", "add_pcn_landmark_WFLW68_annotaions_"+phase+".txt") 
+        else:
+            print("error")
+            exit()
+    """
+
+    dataset = "growing"
+    DatasetDir = "./growing"
+    imgDir = os.path.join(DatasetDir, "growing_20180601")
+    phases = ["test", "train"]
+    for phase in phases:
+        print("phase: ", phase)
+        labelPath = os.path.join(DatasetDir, "traindata8979_20180601_"+phase+".txt")
+        if pcn_type == "rotate":
+            outputDir = os.path.join(DatasetDir, "rotate_pcn_growing_images")
+            newlabelPath = os.path.join(DatasetDir, "rotate_pcn_growing_annotaions_"+phase+".txt")
+        elif pcn_type == "landmark":
+            outputDir = os.path.join(DatasetDir, "add_pcn_landmark_growing_images")
+            newlabelPath = os.path.join(DatasetDir, "add_pcn_landmark_growing_annotaions_"+phase+".txt") 
         else:
             print("error")
             exit()
