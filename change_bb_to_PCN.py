@@ -15,9 +15,6 @@ debug = True
 class ImageDate():
     def __init__(self, line, output_bb_scale):
         line = line.strip().split()
-        if len(line) != 147:
-            import pdb;pdb.set_trace()
-        assert(len(line) == 147)
         self.landmark = np.asarray(list(map(float, line[:136])), dtype=np.float32).reshape(-1, 2)
         self.label = line
         self.new_bb = []
@@ -139,6 +136,9 @@ if __name__ == '__main__':
 
         with open(newlabelPath, mode='w') as newlabel_f:
             for id, line in enumerate(lines):
+                if len(line.strip().split()) != 147:
+                    print("len error :", line)
+                    continue
                 Img = ImageDate(line, OUTPUT_PCN_BB_SCALE)
                 img_name = Img.path
                 Img.convert_data()
@@ -153,6 +153,7 @@ if __name__ == '__main__':
                 # print("save new label of ", img_name)
                 if debug and id < 20:
                     Img.save(debugDir, os.path.basename(img_name))
+                print("num: ", id)
                 #import pdb; pdb.set_trace()
             print("new labels num; ", processed_num)
             print("cannot detect face by pcn: ", len(lines) - processed_num)
