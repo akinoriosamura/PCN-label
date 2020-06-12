@@ -24,7 +24,7 @@ def rotate(angle, center, landmark):
 
 
 class ImageDate():
-    def __init__(self, line, pcn_input_scale, output_bb_scale, imgDir, num_labels, dataset):
+    def __init__(self, line, default_pcn_input_scale, output_scale, imgDir, num_labels, dataset):
         line = line.strip().split()
         """
         num_labels = 98
@@ -92,8 +92,8 @@ class ImageDate():
         else:
             print("len landmark is not invalid")
             exit()
-        self.pcn_input_scale = pcn_input_scale
-        self.output_bb_scale = output_bb_scale
+        self.default_pcn_input_scale = default_pcn_input_scale
+        self.output_scale = output_scale
         self.label = []
 
     def convert_data(self):
@@ -103,91 +103,103 @@ class ImageDate():
         wh = zz - xy + 1
         center = (xy + wh / 2).astype(np.int32)
 
+        print("process img: ", os.path.basename(self.path))
         self.img = cv2.imread(self.path)
 
-        # くりぬきboxのサイズ
-        # このboxを元にpcnをかけ回転させる
-        boxsize = int(np.max(wh) * self.pcn_input_scale)
-        # 顔枠の左上座標
-        xy = center - boxsize // 2
-        x1, y1 = xy
-        # 顔枠右下の座標
-        x2, y2 = xy + boxsize
-        try:
-            height, width, _ = self.img.shape
-        except Exception as e:
-            import pdb;pdb.set_trace()
-        # 顔枠の左上 or 画像の左上縁
-        dx = max(0, -x1)
-        dy = max(0, -y1)
-        x1 = max(0, x1)
-        y1 = max(0, y1)
-
-        # 顔枠の右下 or 画像の右下縁
-        edx = max(0, x2 - width)
-        edy = max(0, y2 - height)
-        x2 = min(width, x2)
-        y2 = min(height, y2)
-
-        # 顔枠でクロップ
-        imgT = self.img[y1:y2, x1:x2]
-        if (dx > 0 or dy > 0 or edx > 0 or edy > 0):
-            # 画像をコピーし周りに境界を作成
-            imgT = cv2.copyMakeBorder(imgT, dy, edy, dx, edx, cv2.BORDER_REPLICATE)
-
-        # クロップサイズに輪郭点ラベルを合わせる
-        landmark = self.landmark - xy
-
-        # PCNで回転角を取得し正座画像に
-        # TODO: change pcn model
-        new_box_dict, angle = self.pcn_detect(imgT)
-        # 顔枠が取れない場合はスキップ
-        # TODO: apply pcn rotate and landmark process
-        if angle != None:
-            self.is_detect = True
-            # pcnの顔枠 * output_bb_scale倍の大きさでcropし学習データ作成
-            # 輪郭点が顔枠からはみ出るとうまく学習できない可能性があるため
-            pcn_x = new_box_dict["x"]
-            pcn_y = new_box_dict["y"]
-            pcn_w = new_box_dict["w"]
-            pcn_center_x = int(pcn_x + pcn_w // 2)
-            pcn_center_y = int(pcn_y + pcn_w // 2)
-
-            croped_img_w = int(pcn_w * self.output_bb_scale)
-            scale_size = (croped_img_w - pcn_w) // 2
-            # crop image
-            croped_x1 = pcn_center_x - croped_img_w // 2
-            croped_y1 = pcn_center_y - croped_img_w // 2
-            croped_x2 = croped_x1 + croped_img_w
-            croped_y2 = croped_y1 + croped_img_w
-            self.new_img = imgT[croped_y1:croped_y2, croped_x1:croped_x2]
-            # scale bbox
-            new_bb_x = scale_size
-            new_bb_y = scale_size
-            self.new_box = [new_bb_x, new_bb_y, pcn_w, pcn_w]
-            # scale landmarks
-            self.new_landmark = landmark - np.array([croped_x1, croped_y1])
-
-            # pcnの出力回転角で輪郭点と画像を回転
-            xy = np.min(self.new_landmark, axis=0).astype(np.int32)
-            zz = np.max(self.new_landmark, axis=0).astype(np.int32)
-            wh = zz - xy + 1
-            center = (xy + wh / 2).astype(np.int32)
-            cx, cy = center
-            M, self.new_landmark = rotate(angle, (cx, cy), self.new_landmark)
+        # pcnで処理するbbに対する画像サイズ
+        # 1.5(default), 2, 3, 4, 5で当たれば終了
+        pcn_in_scales = [1.2, 1.5, 2, 3, 4, 5, 10]
+        for in_s in pcn_in_scales:
+            if self.is_detect:
+                break
+            boxsize = int(np.max(wh) * in_s)
+            # 顔枠の左上座標
+            xy = center - boxsize // 2
+            x1, y1 = xy
+            # 顔枠右下の座標
+            x2, y2 = xy + boxsize
             try:
-                self.new_img = cv2.warpAffine(self.new_img, M, (int(self.new_img.shape[1]), int(self.new_img.shape[0])), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-                for land in self.new_landmark:
-                    for each_land in land:
-                        self.label.append(str(each_land))
-                for bb in self.new_box:
-                    self.label.append(str(bb))
-                attributes = ["0"] * 6
-                self.label.extend(attributes)
-            except:
+                height, width, _ = self.img.shape
+            except Exception as e:
+                import pdb;pdb.set_trace()
+            # 顔枠の左上 or 画像の左上縁
+            dx = max(0, -x1)
+            dy = max(0, -y1)
+            x1 = max(0, x1)
+            y1 = max(0, y1)
+
+            # 顔枠の右下 or 画像の右下縁
+            edx = max(0, x2 - width)
+            edy = max(0, y2 - height)
+            x2 = min(width, x2)
+            y2 = min(height, y2)
+
+            # 顔枠でクロップ
+            imgT = self.img[y1:y2, x1:x2]
+            if (dx > 0 or dy > 0 or edx > 0 or edy > 0):
+                # 画像をコピーし周りに境界を作成
+                imgT = cv2.copyMakeBorder(imgT, dy, edy, dx, edx, cv2.BORDER_REPLICATE)
+
+            # クロップサイズに輪郭点ラベルを合わせる
+            landmark = self.landmark - xy
+
+            # PCNで回転角を取得し正座画像に
+            # TODO: change pcn model
+            new_box_dict, angle = self.pcn_detect(imgT)
+            # 顔枠が取れない場合はスキップ
+            # TODO: apply pcn rotate and landmark process
+            if angle != None:
+                self.is_detect = True
+                print("in scale " + str(in_s) + " size get pcn bb")
+                # pcnの顔枠 * output_scale倍の大きさでcropし学習データ作成
+                # 輪郭点が顔枠からはみ出るとうまく学習できない可能性があるため
+                pcn_x = new_box_dict["x"]
+                pcn_y = new_box_dict["y"]
+                pcn_w = new_box_dict["w"]
+                pcn_center_x = int(pcn_x + pcn_w // 2)
+                pcn_center_y = int(pcn_y + pcn_w // 2)
+
+                croped_img_w = int(pcn_w * self.output_scale)
+                scale_size = (croped_img_w - pcn_w) // 2
+                # crop image
+                croped_x1 = pcn_center_x - croped_img_w // 2
+                croped_y1 = pcn_center_y - croped_img_w // 2
+                croped_x2 = croped_x1 + croped_img_w
+                croped_y2 = croped_y1 + croped_img_w
+                self.new_img = imgT[croped_y1:croped_y2, croped_x1:croped_x2]
+                # scale bbox
+                new_bb_x = scale_size
+                new_bb_y = scale_size
+                new_bb_x2 = new_bb_x + pcn_w
+                new_bb_y2 = new_bb_y + pcn_w
+                self.new_box = [new_bb_x, new_bb_y, new_bb_x2, new_bb_y2]
+                # scale landmarks
+                self.new_landmark = landmark - np.array([croped_x1, croped_y1])
+
+                # pcnの出力回転角で輪郭点と画像を回転
+                xy = np.min(self.new_landmark, axis=0).astype(np.int32)
+                zz = np.max(self.new_landmark, axis=0).astype(np.int32)
+                wh = zz - xy + 1
+                center = (xy + wh / 2).astype(np.int32)
+                cx, cy = center
+                M, self.new_landmark = rotate(angle, (cx, cy), self.new_landmark)
+                try:
+                    self.new_img = cv2.warpAffine(self.new_img, M, (int(self.new_img.shape[1]), int(self.new_img.shape[0])), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+                    for land in self.new_landmark:
+                        for each_land in land:
+                            self.label.append(str(each_land))
+                    for bb in self.new_box:
+                        self.label.append(str(bb))
+                    attributes = ["0"] * 6
+                    self.label.extend(attributes)
+                except:
+                    self.is_detect = False
+                    print("but, in scale " + str(in_s) + " size cant get correct labels")
+            else:
+                print("in scale " + str(in_s) + " size cant get pcn bb, next pcn input scale")
                 self.is_detect = False
-        else:
-            self.is_detect = False
+        if not self.is_detect:
+            print("pass get image for cannot pcn detecting in : ", os.path.basename(self.path))
 
 
     def remove_unuse_land(self, line):
@@ -211,12 +223,12 @@ class ImageDate():
         savePath = os.path.join(debugDir, saveName)
         originPath = savePath + "origin.jpg"
 
-        cv2.rectangle(self.new_img, (self.new_box[0], self.new_box[1]), (self.new_box[0] + self.new_box[2], self.new_box[1] + self.new_box[3]), (255, 0, 0), 1, 1)
+        cv2.rectangle(self.new_img, (self.new_box[0], self.new_box[1]), (self.new_box[2], self.new_box[3]), (255, 0, 0), 1, 1)
         for x, y in self.new_landmark:
             cv2.circle(self.new_img, (int(x), int(y)), 3, (0, 0, 255))
 
         cv2.imwrite(savePath, self.new_img)
-        cv2.rectangle(self.img, (self.box[0], self.box[1]), (self.box[0] + self.box[2], self.box[1] + self.box[3]), (255, 0, 0), 1, 1)
+        cv2.rectangle(self.img, (self.box[0], self.box[1]), (self.box[2], self.box[3]), (255, 0, 0), 1, 1)
         for x, y in self.landmark:
             cv2.circle(self.img, (int(x), int(y)), 3, (0, 0, 255))
         cv2.imwrite(originPath, self.img)
@@ -244,34 +256,33 @@ class ImageDate():
             width = winlist[0].width
             angle = winlist[0].angle
             pcn_box = {"x": x1, "y": y1, "w": width, "h": width}
-        else:
-            print("pass get image for cannot pcn detecting in : ", os.path.basename(self.path))
 
         return pcn_box, angle
 
 if __name__ == '__main__':
     # read label file
-    if len(sys.argv) == 2:
+    if len(sys.argv) == 3:
         phase = sys.argv[1]
         # pcn_type:
         # rotate = rotate face and save pcn label. 
-        # landmark = get pcn landmark and save.no rotate.
+        # landmark = get pcn landmark and save no rotate.
         pcn_type = sys.argv[2]
     else:
         print("please set arg(phase, ex: python create_PCN_labe.py train")
         exit()
     is_debug = True
 
-    PCN_INPUT_SCALE = 3
-    OUTPUT_PCN_BB_SCALE = 1.5
-    # in PCN_INPUT_SCALE = 3 then, train data is below
+    DEFAULT_PCN_INPUT_SCALE = 1.5
+    # output img scale size based on pcn bb
+    OUTPUT_SCALE = 2.0
+    # in DEFAULT_PCN_INPUT_SCALE = 3 then, train data is below
     # new labels num;  5538
     # cannot detect face by pcn:  2279
     # test
     # new labels num;  613
     # cannot detect face by pcn:  256
     
-    
+    """
     dataset = "growing"
     DatasetDir = "./growing"
     imgDir = os.path.join(DatasetDir, "growing_20180601")
@@ -284,7 +295,7 @@ if __name__ == '__main__':
         newlabelPath = os.path.join(DatasetDir, "landmark_pcn_growing_annotaions_"+phase+".txt") 
     else:
         break
-    """
+
     dataset = "WFLW"
     DatasetDir = "./WFLW"
     imgDir = os.path.join(DatasetDir, "WFLW_images")
@@ -292,13 +303,20 @@ if __name__ == '__main__':
     outputDir = os.path.join(DatasetDir, "pcn_WFLW68_images")
     newlabelPath = os.path.join(DatasetDir, "pcn_WFLW68_annotaions_"+phase+".txt")
     """
+    dataset = "baobab"
+    DatasetDir = "/Users/osamura/Documents/jolijoli/dataset/alignment/BAOBAB/baobab_0604"
+    imgDir = os.path.join(DatasetDir, "img")
+    labelPath = os.path.join(DatasetDir, "json/baobab_0604.txt")
+    outputDir = os.path.join(DatasetDir, "pcn_img")
+    newlabelPath = os.path.join(DatasetDir, "json/baobab_0604_pcn.txt")
+
 
     debugDir = "./pcn_debug"
     os.makedirs(outputDir, exist_ok=True)
     os.makedirs(debugDir, exist_ok=True)
 
     print("convert {} to {}".format(labelPath, newlabelPath))
-    print("rotate {} and save in {}".format(imgDir, outputDir))
+    # print("rotate {} and save in {}".format(imgDir, outputDir))
     time.sleep(3)
 
     with open(labelPath, 'r') as label_f:
@@ -308,7 +326,7 @@ if __name__ == '__main__':
 
         with open(newlabelPath, mode='w') as newlabel_f:
             for id, line in enumerate(lines):
-                Img = ImageDate(line, PCN_INPUT_SCALE, OUTPUT_PCN_BB_SCALE, imgDir, 68, dataset)
+                Img = ImageDate(line, DEFAULT_PCN_INPUT_SCALE, OUTPUT_SCALE, imgDir, 68, dataset)
                 img_name = Img.path
                 Img.convert_data()
                 if not Img.is_detect:
@@ -325,6 +343,7 @@ if __name__ == '__main__':
                 processed_num += 1
                 # print("save new label of ", img_name)
                 if is_debug and id < 20:
+                    # print("label: ", str_label)
                     Img.save(debugDir, saveName)
             print("new labels num; ", processed_num)
             print("cannot detect face by pcn: ", len(lines) - processed_num)
