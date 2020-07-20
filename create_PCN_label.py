@@ -97,6 +97,7 @@ class ImageDate():
         self.label = []
 
     def convert_data(self):
+        start = time.time()
         # get center of landmark
         xy = np.min(self.landmark, axis=0).astype(np.int32)
         zz = np.max(self.landmark, axis=0).astype(np.int32)
@@ -200,6 +201,7 @@ class ImageDate():
                 self.is_detect = False
         if not self.is_detect:
             print("pass get image for cannot pcn detecting in : ", os.path.basename(self.path))
+        print("elapsed time: ", time.time() - start)
 
 
     def remove_unuse_land(self, line):
@@ -237,7 +239,10 @@ class ImageDate():
     def pcn_detect(self, img):
         # def crop_face(img, face:Window, crop_size=200):
         winlist = []
-        winlist = pcn.detect(img)
+        try:
+            winlist = pcn.detect(img)
+        except RuntimeError as e:
+            print("get error: ", e)
         """
         if winlist == []:
             rotate = 20
