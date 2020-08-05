@@ -1,0 +1,11 @@
+version: '2.3'
+services:
+  pcn-label:
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+    build: .
+    container_name: pcn-label
+    volumes:
+      - ./:/usr/src/app
+      - /data:/data

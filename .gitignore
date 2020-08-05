@@ -5,3 +5,4 @@ nohup.out
 pytorch-PCN
 WFLW/
 .mypy_cache/
+*.jpg

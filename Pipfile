@@ -10,6 +10,7 @@ numpy = "*"
 opencv-python = "*"
 torch = "==1.0.0"
 pcn = {editable = true,path = "./pytorch-PCN"}
+ipdb = "*"
 
 [requires]
 python_version = "3.6"
