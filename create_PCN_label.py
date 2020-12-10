@@ -402,7 +402,7 @@ if __name__ == '__main__':
     else:
         print("please set arg(phase, ex: python create_PCN_labe.py landmark")
         exit()
-    is_debug = False
+    is_debug = True
     print("pcn_type: ", pcn_type)
     print("use_prelabel: ", use_prelabel)
 
@@ -460,13 +460,21 @@ if __name__ == '__main__':
     labelPath = os.path.join(DatasetDir, "moru_hard_20200716.txt")
     outputDir = os.path.join(DatasetDir, "pcn_img")
     newlabelPath = os.path.join(DatasetDir, "moru_hard_20200716_pcn.txt")
-    """
+
     dataset = "growing"
     DatasetDir = "./growing"
     imgDir = os.path.join(DatasetDir, "growing_20180601")
     labelPath = os.path.join(DatasetDir, "traindata8979_20180601.txt")
     outputDir = os.path.join(DatasetDir, "pcn_growing_20180601")
     newlabelPath = os.path.join(DatasetDir, "traindata8979_20180601_pcn.txt")
+    """
+
+    dataset = "alldata"
+    DatasetDir = "/data/landmarks_datasets/merged/300W_COFW_Menpo2D_MultiPIE_xm2vts_wflw_growing/"
+    imgDir = "/data/landmarks_datasets/"
+    labelPath = os.path.join(DatasetDir, "all_68_rect_attr.txt")
+    outputDir = os.path.join(DatasetDir, "pcn_imgs")
+    newlabelPath = os.path.join(DatasetDir, "pcn_all_68_rect_attr.txt")
 
     debugDir = "./pcn_debug"
     os.makedirs(outputDir, exist_ok=True)
